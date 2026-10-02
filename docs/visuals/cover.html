@@ -1,0 +1,18 @@
+<!doctype html>
+<html><head><meta charset="utf-8">
+<style>
+  html, body { margin: 0; }
+  .cover { width: 1200px; height: 675px; position: relative; overflow: hidden;
+    background: radial-gradient(circle at 15% 20%, #818cf8 0, transparent 45%), radial-gradient(circle at 85% 90%, #c084fc 0, transparent 40%), linear-gradient(135deg, #312e81, #4f46e5 55%, #7c3aed); }
+  .logo { position: absolute; left: 56px; top: 52px; width: 64px; height: 64px; border-radius: 18px; background: #fff; box-shadow: 0 10px 30px rgba(0,0,0,.25); }
+  .logo::after { content: ""; position: absolute; inset: 16px; background:
+    linear-gradient(#4f46e5,#4f46e5) 0 0/13px 13px no-repeat, linear-gradient(#4f46e5,#4f46e5) 100% 0/13px 13px no-repeat,
+    linear-gradient(#4f46e5,#4f46e5) 0 100%/13px 13px no-repeat, linear-gradient(#4f46e5,#4f46e5) 100% 100%/13px 13px no-repeat; }
+  .desk { position: absolute; left: 150px; top: 110px; width: 860px; border-radius: 14px; box-shadow: 0 30px 80px rgba(10, 6, 40, .55); border: 1px solid rgba(255,255,255,.35); transform: perspective(1600px) rotateY(-6deg) rotateX(3deg); }
+  .phone { position: absolute; right: 70px; top: 150px; width: 230px; border-radius: 30px; border: 8px solid #0b0d12; box-shadow: 0 30px 70px rgba(10, 6, 40, .6); }
+</style></head>
+<body><div class="cover">
+  <div class="logo"></div>
+  <img class="desk" src="../images/screen-community.png" alt="">
+  <img class="phone" src="../images/screen-mobile-chat-dark.png" alt="">
+</div></body></html>

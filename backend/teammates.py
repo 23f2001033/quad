@@ -11,6 +11,7 @@ Rules:
 - Project / hackathon needs: prefer complementary skills to the requester's.
 - Study partner needs: prefer a similar level, and the same city if they want to meet in person.
 - If nobody fits well, return fewer matches (or none) rather than weak ones.
+- Refer to people by name. Never use gendered pronouns (he/she/him/her); never guess anyone's gender.
 
 Reply with ONLY a JSON object, no markdown:
 {"matches": [{"id": "candidate id", "why": "one specific sentence on why they fit"}], "tip": "one short, practical suggestion for the requester"}"""

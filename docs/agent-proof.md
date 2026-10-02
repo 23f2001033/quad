@@ -4,35 +4,38 @@ Quad was built and deployed by **Claude Code** working through a dedicated IAM u
 Every API call the agent made is recorded by AWS CloudTrail under that identity, so this report comes from AWS's own audit log.
 
 - Identity used by the agent: `arn:aws:iam::2301••••30:user/claude-code-agent`
-- CloudTrail events recorded for this identity: **218** (02 Oct 14:18 → 02 Oct 14:28 IST)
-- Write actions (create / update / invoke): **57**
+- CloudTrail events recorded for this identity: **322** (02 Oct 14:18 → 02 Oct 16:58 IST)
+- Write actions (create / update / invoke): **116**
 
 ## Calls per AWS service
 
 | Service | Calls |
 |---|---|
 | iam | 62 |
+| cloudformation | 56 |
 | s3 | 48 |
-| cloudformation | 46 |
-| sts | 23 |
+| kms | 47 |
+| lambda | 44 |
+| sts | 24 |
 | ecr | 13 |
-| kms | 9 |
+| cognito-idp | 7 |
 | ssm | 6 |
-| lambda | 6 |
+| cloudtrail | 6 |
+| cloudfront | 5 |
 | bedrock | 4 |
-| cloudtrail | 1 |
 
 ## What the agent changed (write actions)
 
 | Action | Count |
 |---|---|
+| `kms:Decrypt` | 47 |
 | `sts:AssumeRole` | 18 |
-| `kms:Decrypt` | 9 |
+| `lambda:UpdateFunctionCode20150331v2` | 15 |
 | `iam:CreateRole` | 5 |
+| `cloudfront:CreateInvalidation` | 5 |
 | `iam:PutRolePolicy` | 4 |
 | `bedrock:Converse` | 3 |
 | `iam:AttachRolePolicy` | 3 |
-| `lambda:UpdateFunctionCode20150331v2` | 3 |
 | `cloudformation:CreateChangeSet` | 1 |
 | `cloudformation:ExecuteChangeSet` | 1 |
 | `ssm:PutParameter` | 1 |
@@ -45,6 +48,10 @@ Every API call the agent made is recorded by AWS CloudTrail under that identity,
 | `s3:PutBucketEncryption` | 1 |
 | `s3:PutBucketPublicAccessBlock` | 1 |
 | `s3:PutBucketPolicy` | 1 |
+| `cognito-idp:AdminConfirmSignUp` | 1 |
+| `cognito-idp:AdminUpdateUserAttributes` | 1 |
+| `cognito-idp:AdminGetUser` | 1 |
+| `cognito-idp:CreateUserPoolDomain` | 1 |
 
 ## First 15 write actions (timeline)
 

@@ -1,0 +1,150 @@
+<!doctype html>
+<html><head><meta charset="utf-8">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  html, body { margin: 0; background: #ffffff; }
+  svg { display: block; font-family: Inter, system-ui, sans-serif; }
+  .t { font-size: 15px; font-weight: 700; fill: #101828; }
+  .s { font-size: 12.5px; fill: #475467; }
+  .cat { font-size: 10.5px; font-weight: 700; letter-spacing: .08em; }
+  .lbl { font-size: 12px; fill: #344054; font-weight: 600; }
+  .box { fill: #ffffff; stroke: #d0d5dd; stroke-width: 1.2; }
+  .arrow { stroke: #667085; stroke-width: 1.8; fill: none; marker-end: url(#a); }
+  .dash { stroke-dasharray: 6 5; }
+</style></head>
+<body>
+<svg width="1600" height="900" viewBox="0 0 1600 900" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 10 5 0 10z" fill="#667085"/></marker>
+  </defs>
+  <rect width="1600" height="900" fill="#f8f9fb"/>
+
+  <text x="60" y="66" font-size="28" font-weight="800" fill="#101828">Quad on AWS: fully serverless</text>
+  <text x="60" y="94" class="s" font-size="15">Defined in AWS CDK (Python) · built and deployed by Claude Code through the IAM user claude-code-agent · us-east-1</text>
+
+  <!-- Students -->
+  <g transform="translate(60,360)">
+    <rect class="box" width="230" height="130" rx="14"/>
+    <rect width="6" height="130" rx="3" fill="#4f46e5"/>
+    <text x="22" y="30" class="cat" fill="#4f46e5">USERS</text>
+    <text x="22" y="58" class="t">IITM BS students</text>
+    <text x="22" y="80" class="s">Browser SPA (vanilla JS)</text>
+    <text x="22" y="100" class="s">laptop + phone, light/dark</text>
+  </g>
+
+  <!-- column B: edge, identity, APIs -->
+  <g transform="translate(420,140)">
+    <rect class="box" width="300" height="84" rx="14"/><rect width="6" height="84" rx="3" fill="#8c4fff"/>
+    <text x="22" y="28" class="cat" fill="#8c4fff">CONTENT DELIVERY</text>
+    <text x="22" y="52" class="t">Amazon CloudFront</text>
+    <text x="22" y="72" class="s">HTTPS, edge locations in India, OAC</text>
+  </g>
+  <g transform="translate(420,262)">
+    <rect class="box" width="300" height="96" rx="14"/><rect width="6" height="96" rx="3" fill="#dd344c"/>
+    <text x="22" y="28" class="cat" fill="#dd344c">IDENTITY</text>
+    <text x="22" y="52" class="t">Amazon Cognito</text>
+    <text x="22" y="72" class="s">Continue with Google (OAuth + PKCE)</text>
+    <text x="22" y="89" class="s">JWTs for the API</text>
+  </g>
+  <g transform="translate(420,400)">
+    <rect class="box" width="300" height="96" rx="14"/><rect width="6" height="96" rx="3" fill="#e7157b"/>
+    <text x="22" y="28" class="cat" fill="#e7157b">API</text>
+    <text x="22" y="52" class="t">API Gateway: HTTP API</text>
+    <text x="22" y="72" class="s">Cognito JWT authorizer, throttling</text>
+    <text x="22" y="89" class="s">posts · votes · chat · DMs · AI</text>
+  </g>
+  <g transform="translate(420,540)">
+    <rect class="box" width="300" height="96" rx="14"/><rect width="6" height="96" rx="3" fill="#e7157b"/>
+    <text x="22" y="28" class="cat" fill="#e7157b">REAL-TIME</text>
+    <text x="22" y="52" class="t">API Gateway: WebSocket API</text>
+    <text x="22" y="72" class="s">live chat, new posts, replies,</text>
+    <text x="22" y="89" class="s">notifications (one-time tickets)</text>
+  </g>
+
+  <!-- column C: site bucket + Lambdas -->
+  <g transform="translate(850,140)">
+    <rect class="box" width="270" height="84" rx="14"/><rect width="6" height="84" rx="3" fill="#7aa116"/>
+    <text x="22" y="28" class="cat" fill="#7aa116">STORAGE</text>
+    <text x="22" y="52" class="t">Amazon S3: website</text>
+    <text x="22" y="72" class="s">private bucket, CDK-deployed</text>
+  </g>
+  <g transform="translate(850,262)">
+    <rect class="box" width="270" height="96" rx="14"/><rect width="6" height="96" rx="3" fill="#ed7100"/>
+    <text x="22" y="28" class="cat" fill="#ed7100">COMPUTE</text>
+    <text x="22" y="52" class="t">Lambda: pre-sign-up gate</text>
+    <text x="22" y="72" class="s">only @ds.study.iitm.ac.in</text>
+    <text x="22" y="89" class="s">accounts can join</text>
+  </g>
+  <g transform="translate(850,400)">
+    <rect class="box" width="270" height="96" rx="14"/><rect width="6" height="96" rx="3" fill="#ed7100"/>
+    <text x="22" y="28" class="cat" fill="#ed7100">COMPUTE</text>
+    <text x="22" y="52" class="t">Lambda: api</text>
+    <text x="22" y="72" class="s">Python 3.12 · arm64 (Graviton)</text>
+    <text x="22" y="89" class="s">one router, ~40 routes</text>
+  </g>
+  <g transform="translate(850,540)">
+    <rect class="box" width="270" height="96" rx="14"/><rect width="6" height="96" rx="3" fill="#ed7100"/>
+    <text x="22" y="28" class="cat" fill="#ed7100">COMPUTE</text>
+    <text x="22" y="52" class="t">Lambda: ws</text>
+    <text x="22" y="72" class="s">connect · disconnect ·</text>
+    <text x="22" y="89" class="s">watch channels</text>
+  </g>
+
+  <!-- column D: data + AI -->
+  <g transform="translate(1260,140)">
+    <rect class="box" width="290" height="96" rx="14" fill="#f0fdf9"/><rect width="6" height="96" rx="3" fill="#01a88d"/>
+    <text x="22" y="28" class="cat" fill="#01a88d">GENERATIVE AI</text>
+    <text x="22" y="52" class="t">Amazon Bedrock: Nova 2 Lite</text>
+    <text x="22" y="72" class="s">✨ Catch me up · ✨ Find teammates</text>
+    <text x="22" y="89" class="s">Converse API, strict-JSON prompts</text>
+  </g>
+  <g transform="translate(1260,276)">
+    <rect class="box" width="290" height="96" rx="14"/><rect width="6" height="96" rx="3" fill="#7aa116"/>
+    <text x="22" y="28" class="cat" fill="#7aa116">STORAGE</text>
+    <text x="22" y="52" class="t">Amazon S3: shared files</text>
+    <text x="22" y="72" class="s">presigned POST (15 MB cap) and</text>
+    <text x="22" y="89" class="s">presigned GET, all private</text>
+  </g>
+  <g transform="translate(1260,412)">
+    <rect class="box" width="290" height="110" rx="14"/><rect width="6" height="110" rx="3" fill="#c925d1"/>
+    <text x="22" y="28" class="cat" fill="#c925d1">DATABASE</text>
+    <text x="22" y="52" class="t">Amazon DynamoDB</text>
+    <text x="22" y="72" class="s">single table + 1 GSI, on-demand</text>
+    <text x="22" y="89" class="s">users · posts · votes · comments ·</text>
+    <text x="22" y="105" class="s">messages · sockets (TTL)</text>
+  </g>
+  <g transform="translate(1260,562)">
+    <rect class="box" width="290" height="74" rx="14"/><rect width="6" height="74" rx="3" fill="#dd344c"/>
+    <text x="22" y="28" class="cat" fill="#dd344c">SECURITY</text>
+    <text x="22" y="52" class="t">AWS Secrets Manager</text>
+    <text x="22" y="68" class="s">demo-account password, never in code</text>
+  </g>
+
+  <!-- arrows -->
+  <path class="arrow" d="M290 395 C 350 395, 350 182, 418 182"/>
+  <path class="arrow" d="M290 410 C 360 410, 360 310, 418 310"/>
+  <path class="arrow" d="M290 425 L 418 448"/>
+  <path class="arrow" d="M290 455 C 360 455, 360 588, 418 588" marker-start="url(#a)"/>
+  <path class="arrow" d="M720 182 L 848 182"/>
+  <path class="arrow" d="M720 310 L 848 310"/>
+  <path class="arrow" d="M720 448 L 848 448"/>
+  <path class="arrow" d="M720 588 L 848 588"/>
+  <path class="arrow" d="M1120 430 C 1190 430, 1190 188, 1258 188"/>
+  <path class="arrow" d="M1120 440 C 1190 440, 1190 324, 1258 324"/>
+  <path class="arrow" d="M1120 455 L 1258 467"/>
+  <path class="arrow" d="M1120 475 C 1190 475, 1190 599, 1258 599"/>
+  <path class="arrow" d="M1120 600 C 1190 600, 1190 490, 1258 490"/>
+  <path class="arrow dash" d="M985 496 L 985 538"/>
+  <text x="995" y="522" class="lbl">push</text>
+  <path class="arrow dash" d="M175 490 L 175 680 L 1580 680 L 1580 324 L 1553 324"/>
+  <text x="520" y="702" class="lbl">browsers upload and download files directly from S3 with short-lived presigned links</text>
+
+  <!-- build band -->
+  <g transform="translate(60,738)">
+    <rect width="1490" height="110" rx="16" fill="#101828"/>
+    <text x="30" y="38" font-size="11" font-weight="700" letter-spacing=".08em" fill="#a5b4fc">HOW IT WAS BUILT</text>
+    <text x="30" y="70" font-size="17" font-weight="700" fill="#ffffff">Claude Code (coding agent)  →  IAM user claude-code-agent  →  AWS CLI + AWS CDK  →  CloudFormation stack "QuadStack"</text>
+    <text x="30" y="94" font-size="13.5" fill="#d0d5dd">Every API call the agent made is recorded in AWS CloudTrail under its own identity · smoke test: 31 end-to-end checks against the live stack</text>
+  </g>
+</svg>
+</body></html>
