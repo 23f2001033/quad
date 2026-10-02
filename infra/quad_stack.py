@@ -97,9 +97,20 @@ class QuadStack(Stack):
             lambda_triggers=cognito.UserPoolTriggers(pre_sign_up=presignup),
             removal_policy=RemovalPolicy.DESTROY,
         )
+        # "Continue with Google": the Google IdP and the quad-iitmbs login domain are created by
+        # scripts/setup_google_login.py (it needs the OAuth secret, which never goes into code)
+        app_url = self.node.try_get_context("appUrl") or ""
+        auth_domain = self.node.try_get_context("authDomain") or ""
+        oauth = cognito.OAuthSettings(
+            flows=cognito.OAuthFlows(authorization_code_grant=True),
+            scopes=[cognito.OAuthScope.OPENID, cognito.OAuthScope.EMAIL, cognito.OAuthScope.PROFILE],
+            callback_urls=[f"{app_url}/"], logout_urls=[f"{app_url}/"],
+        ) if app_url and auth_domain else None
         client = pool.add_client(
             "WebClient",
             auth_flows=cognito.AuthFlow(user_password=True, admin_user_password=True),
+            o_auth=oauth,
+            supported_identity_providers=[cognito.UserPoolClientIdentityProvider.COGNITO, cognito.UserPoolClientIdentityProvider.GOOGLE] if oauth else None,
             generate_secret=False,
             prevent_user_existence_errors=True,
             id_token_validity=Duration.hours(8),
@@ -204,6 +215,7 @@ class QuadStack(Stack):
                     "userPoolId": pool.user_pool_id,
                     "clientId": client.user_pool_client_id,
                     "allowedDomains": [d.strip() for d in allowed_domains.split(",") if d.strip()],
+                    "authDomain": auth_domain,
                 }),
             ],
             destination_bucket=site,

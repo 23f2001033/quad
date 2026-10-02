@@ -188,19 +188,74 @@ const AUTH = {
   },
 };
 
+// ---------------- "Continue with Google" (Cognito hosted OAuth, authorization code + PKCE) ----------------
+const b64url = (bytes) => btoa(String.fromCharCode(...bytes)).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+const redirectUri = () => `${location.origin}/`;
+const GOOGLE_ICON = `<svg width="18" height="18" viewBox="0 0 48 48" aria-hidden="true"><path fill="#EA4335" d="M24 9.5c3.5 0 6.6 1.2 9.1 3.6l6.8-6.8C35.8 2.4 30.3 0 24 0 14.6 0 6.6 5.4 2.7 13.3l7.9 6.1C12.5 13.6 17.8 9.5 24 9.5z"/><path fill="#4285F4" d="M46.1 24.5c0-1.6-.1-3.1-.4-4.5H24v9h12.4c-.5 2.9-2.2 5.3-4.6 6.9l7.4 5.7c4.3-4 6.9-9.9 6.9-17.1z"/><path fill="#FBBC05" d="M10.6 28.6c-.5-1.4-.8-3-.8-4.6s.3-3.2.8-4.6l-7.9-6.1C1 16.6 0 20.2 0 24s1 7.4 2.7 10.7l7.9-6.1z"/><path fill="#34A853" d="M24 48c6.5 0 11.9-2.1 15.9-5.8l-7.4-5.7c-2.1 1.4-4.8 2.3-8.5 2.3-6.2 0-11.5-4.1-13.4-9.9l-7.9 6.1C6.6 42.6 14.6 48 24 48z"/></svg>`;
+
+async function googleLogin() {
+  const verifier = b64url(crypto.getRandomValues(new Uint8Array(32)));
+  const challenge = b64url(new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(verifier))));
+  const state = b64url(crypto.getRandomValues(new Uint8Array(16)));
+  try { sessionStorage.setItem("quad.pkce", JSON.stringify({ verifier, state })); } catch { return toast("Please allow site storage to sign in.", true); }
+  const q = new URLSearchParams({
+    identity_provider: "Google", response_type: "code", client_id: cfg.clientId, redirect_uri: redirectUri(),
+    scope: "openid email profile", state, code_challenge: challenge, code_challenge_method: "S256",
+  });
+  location.href = `${cfg.authDomain}/oauth2/authorize?${q}`;
+}
+
+// Returns true when we just came back from Google with a valid login.
+async function finishGoogleLogin() {
+  const q = new URLSearchParams(location.search);
+  if (!q.has("code") && !q.has("error")) return false;
+  history.replaceState(null, "", location.pathname + location.hash);
+  let saved = null;
+  try { saved = JSON.parse(sessionStorage.getItem("quad.pkce") || "null"); sessionStorage.removeItem("quad.pkce"); } catch { /* handled below */ }
+  if (q.has("error")) {
+    const msg = (q.get("error_description") || "Sign-in was cancelled.").replace(/^PreSignUp failed with error /, "");
+    openModal(`<div class="modal-head"><h2>Couldn't sign you in</h2><button class="icon-btn" data-action="close-modal">✕</button></div>
+      <p>${esc(msg)}</p><p class="muted small">If Google picked your personal account, choose your <b>@${esc(domains()[0] || "student")}</b> account instead.</p>
+      <div class="modal-actions"><button class="btn primary" data-action="google">${GOOGLE_ICON} Try again</button></div>`);
+    return false;
+  }
+  if (!saved || saved.state !== q.get("state")) { toast("That sign-in link expired. Please try again.", true); return false; }
+  const r = await fetch(`${cfg.authDomain}/oauth2/token`, {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({ grant_type: "authorization_code", client_id: cfg.clientId, code: q.get("code"), redirect_uri: redirectUri(), code_verifier: saved.verifier }),
+  });
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok) { toast(j.error_description || "Google sign-in failed. Please try again.", true); return false; }
+  saveTokens({ IdToken: j.id_token, RefreshToken: j.refresh_token });
+  session.federated = true;
+  store.set(session);
+  return true;
+}
+
 function authModal(mode, email = "") {
   const close = `<button class="icon-btn" type="button" data-action="close-modal" aria-label="Close">✕</button>`;
   const hint = domains().length ? `Only <b>@${esc(domains()[0])}</b> addresses can join.` : "";
   const emailField = `<label>Student email</label><input name="email" type="email" required autocomplete="email" value="${esc(email)}" placeholder="${domains().length ? "21f1000000@" + esc(domains()[0]) : "you@college.edu"}">`;
   const pw = (ac) => `<label>Password</label><input name="password" type="password" required minlength="8" autocomplete="${ac}"><p class="hint">At least 8 characters, with a number.</p>`;
+  const google = cfg.authDomain
+    ? `<button class="btn google lg" type="button" data-action="google">${GOOGLE_ICON} Continue with your IITM Google account</button>`
+    : "";
+  const emailSignup = `<form><label>Full name</label><input name="name" required maxlength="60" autocomplete="name">${emailField}${pw("new-password")}
+      <p class="error"></p><div class="modal-actions"><button class="btn primary" type="submit">Create account</button></div></form>`;
   const views = {
-    login: `<div class="modal-head"><h2>Log in</h2>${close}</div><form>${emailField}<label>Password</label><input name="password" type="password" required autocomplete="current-password">
-      <p class="error"></p><div class="modal-actions"><button class="btn primary" type="submit">Log in</button></div></form>
+    login: `<div class="modal-head"><h2>Log in</h2>${close}</div>${google}${google ? `<p class="divider">or with email and password</p>` : ""}
+      <form>${emailField}<label>Password</label><input name="password" type="password" required autocomplete="current-password">
+      <p class="error"></p><div class="modal-actions"><button class="btn ${google ? "outline" : "primary"}" type="submit">Log in</button></div></form>
       <p class="switch">New here? <a href="#" data-auth="signup">Create an account</a> · <a href="#" data-auth="forgot">Forgot password?</a></p>`,
-    signup: `<div class="modal-head"><h2>Join Quad</h2>${close}</div><p class="muted small">${hint} We'll email you a code to confirm the address is yours.</p>
-      <form><label>Full name</label><input name="name" required maxlength="60" autocomplete="name">${emailField}${pw("new-password")}
-      <p class="error"></p><div class="modal-actions"><button class="btn primary" type="submit">Create account</button></div></form>
-      <p class="switch">Already joined? <a href="#" data-auth="login">Log in</a></p>`,
+    signup: google
+      ? `<div class="modal-head"><h2>Join Quad</h2>${close}</div>
+        <p class="muted">${hint} Google confirms you own your student address, so there are no codes to wait for.</p>${google}
+        <p class="switch">Already joined? <a href="#" data-auth="login">Log in</a> · <a href="#" data-auth="signup-email">Sign up with an email code instead</a></p>`
+      : `<div class="modal-head"><h2>Join Quad</h2>${close}</div><p class="muted small">${hint} We'll email you a code to confirm the address is yours.</p>${emailSignup}
+        <p class="switch">Already joined? <a href="#" data-auth="login">Log in</a></p>`,
+    "signup-email": `<div class="modal-head"><h2>Sign up with email</h2>${close}</div><p class="muted small">${hint} We'll email you a code from no-reply@verificationemail.com. It can take a few minutes, so check spam too.</p>${emailSignup}
+      <p class="switch"><a href="#" data-auth="signup">← Back to Google sign-in</a></p>`,
     confirm: `<div class="modal-head"><h2>Check your inbox</h2>${close}</div><p class="muted">We sent a 6-digit code to <b>${esc(email)}</b>. It can take a minute, so check spam too.</p>
       <form><label>Verification code</label><input name="code" required inputmode="numeric" autocomplete="one-time-code" maxlength="6">
       <p class="error"></p><div class="modal-actions"><button class="btn ghost" type="button" data-resend>Resend code</button><button class="btn primary" type="submit">Verify</button></div></form>`,
@@ -216,14 +271,16 @@ function authModal(mode, email = "") {
     try { await cognito("ResendConfirmationCode", { ClientId: cfg.clientId, Username: email }); toast("New code sent."); } catch (e) { toast(e.message, true); }
   });
   const form = $("form", body);
+  if (!form) return;
+  const submit = AUTH[mode === "signup-email" ? "signup" : mode];
   form.onsubmit = async (e) => {
     e.preventDefault();
     const err = $(".error", form), btn = $("[type=submit]", form);
     err.textContent = "";
     btn.disabled = true;
-    try { await AUTH[mode](Object.fromEntries(new FormData(form)), email); } catch (x) { err.textContent = x.message; } finally { btn.disabled = false; }
+    try { await submit(Object.fromEntries(new FormData(form)), email); } catch (x) { err.textContent = x.message; } finally { btn.disabled = false; }
   };
-  $("input", form)?.focus();
+  if (!cfg.authDomain || mode !== "login") $("input", form)?.focus();
 }
 
 async function demoLogin(btn) {
@@ -781,11 +838,17 @@ const ACTIONS = {
   "open-login": () => authModal("login"),
   "open-signup": () => authModal("signup"),
   demo: (el) => demoLogin(el),
-  logout: () => logout(),
+  logout: () => {
+    const federated = session?.federated;
+    logout();
+    // also end the Cognito hosted session, so the next "Continue with Google" can pick a different account
+    if (federated && cfg.authDomain) location.href = `${cfg.authDomain}/logout?${new URLSearchParams({ client_id: cfg.clientId, logout_uri: redirectUri() })}`;
+  },
   "logout-signup": () => { logout(); authModal("signup"); },
   "open-menu": () => document.body.classList.add("menu-open"),
   "close-menu": () => document.body.classList.remove("menu-open"),
   "close-modal": () => closeModal(),
+  google: () => googleLogin(),
 };
 
 async function boot() {
@@ -802,7 +865,14 @@ async function boot() {
     return;
   }
   loadStats();
+  let fromGoogle = false;
+  try { fromGoogle = await finishGoogleLogin(); } catch (e) { toast(e.message, true); }
   session = store.get();
-  if (session) await enterApp();
+  if (!session) return;
+  await enterApp();
+  if (fromGoogle && me && !me.level) {
+    toast("Welcome to Quad! 🎉 Set up your profile so classmates can find you.");
+    go("#/me");
+  }
 }
 boot();

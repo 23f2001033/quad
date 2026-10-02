@@ -55,6 +55,10 @@ img { max-width: 100%; }
 .btn.ai { background: var(--ai-soft); color: var(--ai); border-color: color-mix(in srgb, var(--ai) 35%, transparent); }
 .btn.danger { color: var(--danger); }
 .btn.lg { padding: 12px 20px; font-size: 16px; border-radius: 12px; }
+.btn.google { width: 100%; justify-content: center; gap: 10px; background: var(--surface); color: var(--text); border-color: var(--border); margin: 10px 0 4px; box-shadow: var(--shadow); }
+.btn.google:hover { border-color: var(--primary); }
+.divider { display: flex; align-items: center; gap: 10px; color: var(--muted); font-size: 13px; margin: 14px 0 0; }
+.divider::before, .divider::after { content: ""; flex: 1; border-top: 1px solid var(--border); }
 .btn.sm { padding: 5px 10px; font-size: 13px; }
 .icon-btn { font: inherit; background: none; border: 0; font-size: 20px; cursor: pointer; color: var(--text); padding: 6px 10px; border-radius: 8px; }
 .icon-btn:hover { background: var(--surface-2); }

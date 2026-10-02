@@ -19,3 +19,7 @@ cdk.out/
 .DS_Store
 Thumbs.db
 .vscode/
+
+# Google OAuth client secret
+google-oauth.json
+client_secret*.json

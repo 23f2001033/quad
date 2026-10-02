@@ -2,6 +2,8 @@
   "app": "..\\.venv\\Scripts\\python.exe app.py",
   "context": {
     "allowedDomains": "ds.study.iitm.ac.in",
-    "modelId": "us.amazon.nova-2-lite-v1:0"
+    "modelId": "us.amazon.nova-2-lite-v1:0",
+    "appUrl": "https://d3sky2k7b1uv30.cloudfront.net",
+    "authDomain": "https://quad-iitmbs.auth.us-east-1.amazoncognito.com"
   }
 }
