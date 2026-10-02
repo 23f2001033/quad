@@ -1,0 +1,7 @@
+{
+  "app": "../.venv/Scripts/python.exe app.py",
+  "context": {
+    "allowedDomains": "ds.study.iitm.ac.in",
+    "modelId": "us.amazon.nova-pro-v1:0"
+  }
+}

@@ -1,0 +1,143 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Quad — IITM BS student community</title>
+  <meta name="description" content="Quad is a community app only for verified IIT Madras BS degree students: course groups, exam prep, hackathon teams, fests and city meetups with posts, real-time group chat, file sharing, direct messages and an AI 'Catch me up' that summarises what you missed. Built on AWS. Unofficial student project.">
+  <meta property="og:title" content="Quad — the campus our online degree doesn't have">
+  <meta property="og:description" content="Verified-students-only communities with posts, real-time chat, file sharing, DMs and AI catch-ups. Built on AWS.">
+  <meta name="theme-color" content="#5b4cf0">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='16' fill='%235b4cf0'/%3E%3Cpath d='M18 18h12v12H18zM34 18h12v12H34zM18 34h12v12H18zM34 34h12v12H34z' fill='white'/%3E%3C/svg%3E">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<!-- ================= Public landing page (readable without JavaScript or login) ================= -->
+<div id="landing">
+  <header class="lp-nav">
+    <a class="brand" href="#"><span class="logo"></span>Quad</a>
+    <nav>
+      <button class="btn ghost" data-action="open-login">Log in</button>
+      <button class="btn primary" data-action="demo">Try the demo</button>
+    </nav>
+  </header>
+
+  <main>
+    <section class="hero">
+      <p class="eyebrow">For IITM BS students, by an IITM BS student</p>
+      <h1>The campus our online degree doesn't have.</h1>
+      <p class="lead">Over 30,000 of us study for the IIT Madras BS degree from cities and towns all over India. We almost never meet.
+        Quad is a community app only for verified students: you sign up with your <b>@ds.study.iitm.ac.in</b> email.
+        Then you can join subject groups, OPPE and end-term prep circles, hackathon teams, fest crews and city meetups.
+        Each one has posts, a real-time group chat, file sharing and direct messages.
+        When a group gets busy, <strong>✨ Catch me up</strong> uses AI to tell you what you missed in seconds.</p>
+      <div class="cta-row">
+        <button class="btn primary lg" data-action="open-signup">Sign up with student email</button>
+        <button class="btn outline lg" data-action="demo">Try the live demo (no sign-up)</button>
+      </div>
+      <p class="fine">Judges and visitors: “Try the live demo” logs you into a shared demo account with sample communities.
+        Quad is an unofficial student project and is not affiliated with IIT Madras.</p>
+    </section>
+
+    <section class="stats" aria-label="Live usage">
+      <div><b data-stat="users">–</b><span>students joined</span></div>
+      <div><b data-stat="communities">–</b><span>communities</span></div>
+      <div><b data-stat="posts">–</b><span>posts</span></div>
+      <div><b data-stat="messages">–</b><span>chat messages</span></div>
+      <div><b data-stat="files">–</b><span>files shared</span></div>
+      <div><b data-stat="catchups">–</b><span>AI catch-ups</span></div>
+    </section>
+
+    <section class="block">
+      <h2>Why not just WhatsApp?</h2>
+      <div class="grid3">
+        <article class="card">
+          <h3>📣 Important stuff gets buried</h3>
+          <p>A course group gets hundreds of messages before a quiz or OPPE. The one message with the deadline or the notes link scrolls away and nobody can find it again.</p>
+        </article>
+        <article class="card">
+          <h3>🕵️ Anyone with the link can join</h3>
+          <p>Group links get forwarded everywhere, so spammers and "paid help" sellers get in. On Quad, every account is checked against a student email address.</p>
+        </article>
+        <article class="card">
+          <h3>🧭 No campus, so no way to find your people</h3>
+          <p>In an online degree, nobody bumps into a study partner in the corridor. Quad lets you browse every community, and find students taking your course, at your level, in your city.</p>
+        </article>
+      </div>
+    </section>
+
+    <section class="block">
+      <h2>What you can do on Quad</h2>
+      <div class="grid3">
+        <article class="card"><h3>✅ Verified students only</h3><p>You sign up with your student email and confirm it with a one-time code. Your batch is read from your roll number, so nobody can fake it.</p></article>
+        <article class="card"><h3>🏘️ Communities for everything</h3><p>Courses, exam prep, hackathons, fests, clubs and city meetups. Anyone can start one, and anyone can find and join it.</p></article>
+        <article class="card"><h3>📝 Posts that stay visible</h3><p>Announcements, questions and notes go in a feed with likes and comments, so they don't get lost in chat.</p></article>
+        <article class="card"><h3>💬 Real-time group chat</h3><p>Every community has a live chat. You can share PDFs, images and files up to 15 MB.</p></article>
+        <article class="card"><h3>✉️ Direct messages</h3><p>Message any verified student, like a teammate, a senior or a classmate, without swapping phone numbers.</p></article>
+        <article class="card ai"><h3>✨ Catch me up</h3><p>Missed 200 messages? In one click, AI on Amazon Bedrock lists the highlights, deadlines, unanswered questions and files you need.</p></article>
+      </div>
+    </section>
+
+    <section class="block">
+      <h2>Built on AWS, serverless from end to end</h2>
+      <ul class="aws">
+        <li><b>Amazon CloudFront + S3</b> serve this site from edge locations close to students.</li>
+        <li><b>Amazon Cognito</b> handles sign-up with email verification. A Lambda trigger blocks any email that isn't a student address.</li>
+        <li><b>Amazon API Gateway</b> runs an HTTP API for the app and a WebSocket API for live chat.</li>
+        <li><b>AWS Lambda (Python)</b> runs all the app logic, with no servers to manage.</li>
+        <li><b>Amazon DynamoDB</b> stores profiles, communities, posts and messages in a single table.</li>
+        <li><b>Amazon S3</b> stores shared files. Browsers upload directly using short-lived presigned links.</li>
+        <li><b>Amazon Bedrock</b> powers ✨ Catch me up.</li>
+        <li><b>AWS CDK</b> defines all of this as code. It was built with Claude Code, a coding agent connected to the AWS account.</li>
+      </ul>
+    </section>
+  </main>
+
+  <footer class="lp-foot">
+    <p>Quad, built solo by an IITM BS student for the AWS Builder Center <em>Zero to Shipped</em> hackathon.
+      An unofficial student project, not affiliated with or endorsed by IIT Madras.</p>
+  </footer>
+</div>
+
+<!-- ================= App (after login) ================= -->
+<div id="app" hidden>
+  <aside id="sidebar">
+    <a class="brand" href="#/"><span class="logo"></span>Quad</a>
+    <nav class="side-nav">
+      <a href="#/" data-nav="home">🏠 <span>Home</span></a>
+      <a href="#/explore" data-nav="explore">🧭 <span>Explore</span></a>
+      <a href="#/messages" data-nav="messages">💬 <span>Messages</span> <i id="dm-badge" class="badge" hidden></i></a>
+      <a href="#/me" data-nav="me">👤 <span>Profile</span></a>
+    </nav>
+    <p class="side-label">Your communities</p>
+    <div id="my-comms" class="side-comms"></div>
+    <div class="side-foot">
+      <div id="side-me"></div>
+      <button class="btn ghost sm" data-action="logout">Log out</button>
+    </div>
+  </aside>
+  <div id="scrim" data-action="close-menu"></div>
+  <div class="main-wrap">
+    <header class="topbar">
+      <button class="icon-btn" data-action="open-menu" aria-label="Menu">☰</button>
+      <a class="brand" href="#/"><span class="logo"></span>Quad</a>
+      <span></span>
+    </header>
+    <div id="demo-banner" class="demo-banner" hidden>
+      👋 You're in the shared <b>demo account</b>. To get your own profile, <a href="#" data-action="logout-signup">sign up with your college email</a>.
+    </div>
+    <main id="view"></main>
+  </div>
+</div>
+
+<dialog id="modal"><div id="modal-body"></div></dialog>
+<div id="toasts"></div>
+
+<noscript><p class="noscript">Quad needs JavaScript to run the app. Everything above describes what it does.</p></noscript>
+<script type="module" src="app.js"></script>
+</body>
+</html>

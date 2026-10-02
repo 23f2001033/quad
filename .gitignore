@@ -1,0 +1,21 @@
+# secrets — never commit AWS keys
+.aws/
+*.csv
+.env
+.env.*
+
+# python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# node / cdk
+node_modules/
+cdk.out/
+.cdk.staging/
+
+# os / editor
+.DS_Store
+Thumbs.db
+.vscode/
