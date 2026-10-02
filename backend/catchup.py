@@ -8,7 +8,7 @@ from boto3.dynamodb.conditions import Key
 
 from common import query_all, id_ms
 
-MODEL_ID = os.environ.get("MODEL_ID", "us.amazon.nova-pro-v1:0")
+MODEL_ID = os.environ.get("MODEL_ID", "us.amazon.nova-2-lite-v1:0")
 IST = timezone(timedelta(hours=5, minutes=30))
 MAX_TRANSCRIPT_CHARS = 60_000
 

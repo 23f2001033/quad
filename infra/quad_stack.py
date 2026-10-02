@@ -27,7 +27,7 @@ class QuadStack(Stack):
         super().__init__(scope, cid, **kwargs)
 
         allowed_domains = self.node.try_get_context("allowedDomains") or ""
-        model_id = self.node.try_get_context("modelId") or "us.amazon.nova-pro-v1:0"
+        model_id = self.node.try_get_context("modelId") or "us.amazon.nova-2-lite-v1:0"
         demo_email = "demo@quad.demo"
 
         # ---------- data ----------

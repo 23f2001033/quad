@@ -104,7 +104,8 @@ def ensure_profile(req):
     }
     try:
         TABLE.put_item(Item=p, ConditionExpression="attribute_not_exists(pk)")
-        bump_stat("users")
+        if not p["demo"]:
+            bump_stat("users")
     except ClientError as e:
         if e.response["Error"]["Code"] != "ConditionalCheckFailedException":
             raise
@@ -164,6 +165,12 @@ def get_user(req, sub):
     return {"user": public_profile(p), "communities": [{"cid": c["cid"], "name": c["name"], "type": c["type"]} for c in comms]}
 
 
+def track(req, name, n=1):
+    """Public usage stats count real students only, never the shared demo account."""
+    if not req.profile.get("demo"):
+        bump_stat(name, n)
+
+
 # ---------------- communities ----------------
 
 def community_out(meta, joined=False, role=None):
@@ -219,7 +226,7 @@ def create_community(req):
     }
     TABLE.put_item(Item=meta)
     join_community(req, meta, role="owner")
-    bump_stat("communities")
+    track(req, "communities")
     meta["memberCount"] = 1
     return community_out(meta, True, "owner")
 
@@ -314,9 +321,9 @@ def create_post(req, cid):
         "text": text, "attachments": atts, "likeCount": 0, "commentCount": 0, "createdAt": now_ms(),
     }
     TABLE.put_item(Item=p)
-    bump_stat("posts")
+    track(req, "posts")
     if atts:
-        bump_stat("files", len(atts))
+        track(req, "files", len(atts))
     out = sign_attachments(strip_keys(p))
     out["liked"] = False
     push(f"comm:{cid}", {"type": "post", "post": out})
@@ -361,7 +368,7 @@ def add_comment(req, cid, pid):
         ExpressionAttributeValues={":one": 1}, ConditionExpression="attribute_exists(pk)",
     )
     TABLE.put_item(Item=c)
-    bump_stat("comments")
+    track(req, "comments")
     out = strip_keys(c)
     push(f"comm:{cid}", {"type": "comment", "pid": pid, "comment": out})
     return out
@@ -409,9 +416,9 @@ def send_message(req, conv):
     m = {"pk": f"CONV#{conv}", "sk": f"MSG#{mid}", "mid": mid, "conv": conv, "sender": req.sub,
          "senderName": req.profile["name"], "text": text, "attachments": atts, "createdAt": now_ms()}
     TABLE.put_item(Item=m)
-    bump_stat("messages")
+    track(req, "messages")
     if atts:
-        bump_stat("files", len(atts))
+        track(req, "files", len(atts))
     out = sign_attachments(strip_keys(m))
     preview = text[:120] or f"📎 {atts[0]['name']}"
     if kind == "dm":
@@ -474,7 +481,7 @@ def catch_me_up(req, cid):
     result["since"] = since
     result["window"] = window
     if not result["empty"]:
-        bump_stat("catchups")
+        track(req, "catchups")
     return result
 
 

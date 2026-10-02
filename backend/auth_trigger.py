@@ -11,5 +11,5 @@ def handler(event, context):
     domain = email.rsplit("@", 1)[-1]
     if ALLOWED and not any(domain == d or domain.endswith("." + d) for d in ALLOWED):
         allowed = " or ".join("@" + d for d in ALLOWED)
-        raise Exception(f"Quad is only for students of our college. Please sign up with your {allowed} email.")
+        raise Exception(f"Quad is only for IITM BS students. Please sign up with your {allowed} email")
     return event

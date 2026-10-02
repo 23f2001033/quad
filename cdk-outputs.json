@@ -1,0 +1,10 @@
+{
+  "QuadStack": {
+    "UploadsBucket": "quadstack-uploads4f6eb0fd-iol9l7zad72n",
+    "TableName": "QuadStack-TableCD117FA1-ZXEYGTIA2B7O",
+    "ApiUrl": "https://copvyivwp3.execute-api.us-east-1.amazonaws.com",
+    "UserPoolId": "us-east-1_XPBhkUabY",
+    "AppUrl": "https://d3sky2k7b1uv30.cloudfront.net",
+    "WsUrl": "wss://8hrnfn5a8h.execute-api.us-east-1.amazonaws.com/live"
+  }
+}
