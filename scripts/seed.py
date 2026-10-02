@@ -10,6 +10,7 @@ import urllib.request
 
 import boto3
 import pymupdf
+from boto3.dynamodb.conditions import Key
 
 REGION = "us-east-1"
 STACK = "QuadStack"
@@ -77,7 +78,11 @@ def upload_sample_file(sub, name, data, ctype="application/pdf"):
     return {"key": key, "name": name, "size": len(data), "type": ctype}
 
 
+COMMS = {}
+
+
 def community(cid, name, ctype, desc, owner=None, members=(), sample=False, created=NOW - 120 * H):
+    COMMS[cid] = (name, ctype)
     owner_name = PEOPLE[owner][0] if owner else "Quad team"
     table.put_item(Item={
         "pk": f"COMM#{cid}", "sk": "META", "cid": cid, "name": name, "description": desc, "type": ctype,
@@ -92,21 +97,25 @@ def community(cid, name, ctype, desc, owner=None, members=(), sample=False, crea
         table.put_item(Item={"pk": f"USER#{sub}", "sk": f"COMM#{cid}", "cid": cid, "name": name, "type": ctype, "joinedAt": created})
 
 
-def post(cid, n, hours_ago, author, text, attachments=(), likes=0, comments=()):
+def post(cid, n, hours_ago, author, title, text, attachments=(), score=1, comments=()):
+    """comments: (author, text) or (author, text, index_of_comment_it_replies_to)"""
     ms = NOW - int(hours_ago * H)
     pid = sid(ms, n)
+    name, ctype = COMMS[cid]
     table.put_item(Item={
-        "pk": f"COMM#{cid}", "sk": f"POST#{pid}", "pid": pid, "cid": cid, "author": author,
-        "authorName": PEOPLE[author][0], "authorLevel": PEOPLE[author][1], "text": text,
-        "attachments": list(attachments), "likeCount": likes, "commentCount": len(comments),
-        "createdAt": ms, "sample": True,
+        "pk": f"COMM#{cid}", "sk": f"POST#{pid}", "pid": pid, "cid": cid, "communityName": name, "communityType": ctype,
+        "author": author, "authorName": PEOPLE[author][0], "authorLevel": PEOPLE[author][1], "title": title, "text": text,
+        "attachments": list(attachments), "score": score, "commentCount": len(comments),
+        "createdAt": ms, "sample": True, "gsi1pk": "POSTS", "gsi1sk": pid,
     })
-    for i, (c_author, c_text) in enumerate(comments):
+    ids = []
+    for i, c in enumerate(comments):
         cms = ms + (i + 1) * 20 * 60 * 1000
         cmid = sid(cms, n * 100 + i)
+        ids.append(cmid)
         table.put_item(Item={
-            "pk": f"POST#{pid}", "sk": f"C#{cmid}", "cmid": cmid, "pid": pid, "author": c_author,
-            "authorName": PEOPLE[c_author][0], "text": c_text, "createdAt": cms, "sample": True,
+            "pk": f"POST#{pid}", "sk": f"C#{cmid}", "cmid": cmid, "pid": pid, "parent": ids[c[2]] if len(c) > 2 else "",
+            "author": c[0], "authorName": PEOPLE[c[0]][0], "text": c[1], "createdAt": cms, "sample": True,
         })
 
 
@@ -147,28 +156,28 @@ def seed_mlt():
         "Q4. MLE of the mean of a Gaussian from n samples.",
         "Sample file created for the Quad demo.",
     ]))
-    post(cid, 1, 70, "sample-meera",
+    post(cid, 1, 70, "sample-meera", "📌 Quiz 1 revision session: Saturday 8 PM on Google Meet",
          "📌 Quiz 1 revision session this Saturday, 8 PM on Google Meet (link will be posted in the group chat an hour before).\n"
          "We'll cover weeks 1–4: PCA, kernel PCA, K-means and estimation. Comment the topics you're stuck on 👇",
-         likes=14, comments=[
+         score=14, comments=[
              ("sample-ananya", "Kernel centring please! The K~ = K - 1K - K1 + 1K1 step confuses me every time."),
              ("sample-arjun", "Can a Foundation student join just to listen? 😅"),
-             ("sample-meera", "@Arjun of course, everyone's welcome."),
+             ("sample-meera", "Of course, everyone's welcome!", 1),
              ("sample-rohit", "K-means++ initialisation and why it helps."),
          ])
-    post(cid, 46, 46, "sample-ananya",
+    post(cid, 46, 46, "sample-ananya", "PCA + kernel PCA cheat sheet (2 pages, all formulas)",
          "Made a 2-page PCA + kernel PCA cheat sheet from the lectures. All formulas in one place. Hope it helps for Quiz 1!",
-         attachments=[cheat], likes=22, comments=[
+         attachments=[cheat], score=22, comments=[
              ("sample-zoya", "This is gold, thank you!!"),
-             ("sample-meera", "Pinning this in the revision session 🙌"),
+             ("sample-meera", "Pinning this in the revision session 🙌", 0),
          ])
-    post(cid, 20, 20, "sample-arjun",
+    post(cid, 20, 20, "sample-arjun", "Which courses should I finish before taking MLT?",
          "Foundation student here, planning to take MLT in a later term. Which courses should I finish first so it isn't too hard?",
-         likes=3, comments=[
+         score=3, comments=[
              ("sample-meera", "MLF first, definitely. Brush up on Maths 2 linear algebra (eigenvalues!) too."),
          ])
-    post(cid, 5, 5, "sample-meera", "Practice questions for Saturday. Try them before the session so we can discuss.",
-         attachments=[pyq], likes=9)
+    post(cid, 5, 5, "sample-meera", "Quiz 1 practice set for Saturday's session", "Practice questions for Saturday. Try them before the session so we can discuss.",
+         attachments=[pyq], score=9)
 
     conv = f"c_{cid}"
     chat(conv, 50, [
@@ -203,17 +212,18 @@ def seed_hackathon():
     community(cid, "Hackathon teammates (sample)", "hackathon",
               "Sample community showing how Quad works: find teammates across levels and cities for hackathons. Everything here is demo content.",
               owner="sample-vikram", members=members, sample=True)
-    post(cid, 3, 60, "sample-vikram",
+    post(cid, 3, 60, "sample-vikram", "Looking for 2 teammates (UI + ML) for an AWS hackathon",
          "🏆 Looking for 2 teammates for an AWS hackathon (deadline in ~10 days).\n"
          "I can do AWS + backend (Lambda, DynamoDB). Looking for one UI person and one ML person.\n"
          "Idea: an AI planner that makes a personal OPPE prep schedule. DM me!",
-         likes=11, comments=[
+         score=11, comments=[
              ("sample-zoya", "I can do UI + data viz. DMing you."),
              ("sample-ananya", "ML person here, interested! What model are you thinking?"),
+             ("sample-vikram", "Amazon Nova on Bedrock, it's quick to set up. Sending you a DM!", 1),
          ])
-    post(cid, 4, 30, "sample-rohit",
+    post(cid, 4, 30, "sample-rohit", "Anyone forming a team for the fest coding contest?",
          "Is anyone forming a team for the college fest coding contest? I'm a Flask + Vue person (MAD 1 & 2 done).",
-         likes=4)
+         score=4)
     chat(f"c_{cid}", 30, [
         (0, "sample-vikram", "team so far: me (backend), Zoya (UI), Ananya (ML). Need a name 😄"),
         (3, "sample-zoya", "'Prep Pilot'?"),
@@ -274,7 +284,25 @@ def seed_demo_user(sample_cids):
     return demo
 
 
+def _delete_partition(pk, prefix=""):
+    cond = Key("pk").eq(pk) & Key("sk").begins_with(prefix) if prefix else Key("pk").eq(pk)
+    for it in table.query(KeyConditionExpression=cond)["Items"]:
+        table.delete_item(Key={"pk": it["pk"], "sk": it["sk"]})
+
+
+def wipe_sample_content():
+    """Ids are time-based, so remove the previous run's sample posts/chat before re-creating them."""
+    for cid in ("sample-mlt", "sample-hack"):
+        for p in table.query(KeyConditionExpression=Key("pk").eq(f"COMM#{cid}") & Key("sk").begins_with("POST#"))["Items"]:
+            _delete_partition(f"POST#{p['pid']}")
+            table.delete_item(Key={"pk": p["pk"], "sk": p["sk"]})
+        _delete_partition(f"CONV#c_{cid}")
+    for d in table.query(KeyConditionExpression=Key("pk").eq("USER#sample-meera") & Key("sk").begins_with("DM#"))["Items"]:
+        _delete_partition("CONV#d_" + "_".join(sorted(["sample-meera", d["other"]])), "MSG#")
+
+
 if __name__ == "__main__":
+    wipe_sample_content()
     seed_people()
     sample = [seed_mlt(), seed_hackathon()]
     seed_starters()

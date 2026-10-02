@@ -98,18 +98,35 @@ try:
     msgs = call("GET", f"/api/conversations/c_{cid}/messages", tok)["messages"]
     check("chat history", any(x["mid"] == m["mid"] for x in msgs))
 
-    # --- posts, likes, comments ---
-    p = call("POST", f"/api/communities/{cid}/posts", tok, {"text": "Quiz 1 revision on Saturday 8 PM. Bring your doubts about PCA!"})
+    # --- posts, votes, threaded comments, feed, search ---
+    p = call("POST", f"/api/communities/{cid}/posts", tok, {"title": "Quiz 1 revision on Saturday", "text": "Bring your doubts about PCA!"})
     created_pks.append(f"POST#{p['pid']}")
-    like = call("POST", f"/api/communities/{cid}/posts/{p['pid']}/like", tok)
-    unlike = call("POST", f"/api/communities/{cid}/posts/{p['pid']}/like", tok)
-    check("like / unlike toggles", like["liked"] and like["likeCount"] == 1 and not unlike["liked"] and unlike["likeCount"] == 0)
+    check("create post (author auto-upvotes)", p["score"] == 1 and p["myVote"] == 1)
+    down = call("POST", f"/api/communities/{cid}/posts/{p['pid']}/vote", tok, {"value": -1})
+    clear = call("POST", f"/api/communities/{cid}/posts/{p['pid']}/vote", tok, {"value": 0})
+    check("down-vote then clear", down["score"] == -1 and down["myVote"] == -1 and clear["score"] == 0)
     cm = call("POST", f"/api/communities/{cid}/posts/{p['pid']}/comments", tok, {"text": "Is it recorded?"})
-    check("comment", cm["text"] == "Is it recorded?")
-    posts = call("GET", f"/api/communities/{cid}/posts", tok)["posts"]
-    check("feed shows post with comment count", posts and posts[0]["commentCount"] == 1)
+    rp = call("POST", f"/api/communities/{cid}/posts/{p['pid']}/comments", tok, {"text": "Yes!", "parent": cm["cmid"]})
+    check("threaded reply", rp["parent"] == cm["cmid"])
+    call("DELETE", f"/api/communities/{cid}/posts/{p['pid']}/comments/{cm['cmid']}", tok)
+    cms = call("GET", f"/api/communities/{cid}/posts/{p['pid']}/comments", tok)["comments"]
+    check("deleted comment keeps its slot as [deleted]", any(c.get("deleted") for c in cms) and len(cms) == 2)
+    detail = call("GET", f"/api/communities/{cid}/posts/{p['pid']}", tok)
+    check("post page shows comment count", detail["commentCount"] == 2)
+    feed = call("GET", "/api/feed?scope=mine&sort=new", tok)["posts"]
+    check("home feed includes the new post", any(x["pid"] == p["pid"] for x in feed))
+    hot = call("GET", "/api/feed?scope=all&sort=hot", tok)["posts"]
+    check("popular feed (hot sort)", len(hot) > 0)
+    found = call("GET", "/api/search?q=revision", tok)
+    check("search finds the post", any(x["pid"] == p["pid"] for x in found["posts"]))
     time.sleep(1.5)
     check("post pushed live over websocket", any(e.get("type") == "post" for e in got))
+    call("DELETE", f"/api/conversations/c_{cid}/messages/{m['mid']}", tok)
+    time.sleep(1.5)
+    check("message delete pushed live", any(e.get("type") == "message_deleted" for e in got))
+    check("notifications endpoint", "unread" in call("GET", "/api/notifications", tok))
+    tm = call("POST", "/api/communities/sample-hack/teammates", tok, {"need": "a UI person"})
+    check("✨ Find teammates (Bedrock)", isinstance(tm["matches"], list), f"{len(tm['matches'])} matches")
 
     # --- AI ---
     t0 = time.time()

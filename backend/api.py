@@ -12,6 +12,7 @@ from boto3.dynamodb.conditions import Key
 from botocore.exceptions import ClientError
 
 import catchup
+import teammates
 from common import (
     COMMUNITY_TYPES, TABLE, ApiError, bump_stat, clean_attachments, clean_text, conv_access,
     get_community, get_membership, get_profile, new_id, now_ms, presign_upload,
@@ -262,6 +263,7 @@ def join(req, cid):
     if not meta:
         raise ApiError(404, "Community not found")
     join_community(req, meta)
+    notify(meta.get("createdBy"), req, "join", f'joined your community "{meta["name"]}"', f"#/c/{cid}/members")
     return {"ok": True}
 
 
@@ -283,85 +285,180 @@ def require_member(req, cid):
         raise ApiError(403, "Join this community first")
 
 
-# ---------------- posts, likes, comments ----------------
+# ---------------- posts, votes, comments (Reddit-style) ----------------
 
-@route("GET", "/api/communities/{cid}/posts")
-def list_posts(req, cid):
-    before = req.qs.get("before")
-    upper = f"POST#{before}" if before else "POST#~"
-    items = query_all(
-        KeyConditionExpression=Key("pk").eq(f"COMM#{cid}") & Key("sk").between("POST#0", upper),
-        ScanIndexForward=False, Limit=26,
-    )
-    items = [p for p in items if p["pid"] != before][:25]
-    liked = set()
-    if items:
-        keys = [{"pk": f"POST#{p['pid']}", "sk": f"LIKE#{req.sub}"} for p in items]
+def _hot(p):
+    """Reddit-style hot rank: score that decays with age."""
+    age_h = max(0.0, (now_ms() - int(p.get("createdAt", 0))) / 3_600_000)
+    return (int(p.get("score", 0)) + 1) / ((age_h + 2) ** 1.5)
+
+
+def _sort_posts(items, sort):
+    if sort == "top":
+        items.sort(key=lambda p: (int(p.get("score", 0)), p["pid"]), reverse=True)
+    elif sort == "hot":
+        items.sort(key=_hot, reverse=True)
+    else:
+        items.sort(key=lambda p: p["pid"], reverse=True)
+    return items
+
+
+def _posts_out(req, items):
+    """Sign attachment links and add the caller's own vote to each post."""
+    votes = {}
+    for i in range(0, len(items), 100):
+        keys = [{"pk": f"POST#{p['pid']}", "sk": f"VOTE#{req.sub}"} for p in items[i:i + 100]]
         res = TABLE.meta.client.batch_get_item(RequestItems={TABLE.name: {"Keys": keys}})
-        liked = {r["pk"][5:] for r in res["Responses"].get(TABLE.name, [])}
+        for r in res["Responses"].get(TABLE.name, []):
+            votes[r["pk"][5:]] = int(r.get("value", 0))
     out = []
     for p in items:
         p = sign_attachments(strip_keys(p))
-        p["liked"] = p["pid"] in liked
+        p.setdefault("score", 0)
+        p["myVote"] = votes.get(p["pid"], 0)
         out.append(p)
-    return {"posts": out}
+    return out
+
+
+def get_post_item(cid, pid):
+    p = TABLE.get_item(Key={"pk": f"COMM#{cid}", "sk": f"POST#{pid}"}).get("Item")
+    if not p:
+        raise ApiError(404, "This post was deleted or never existed")
+    return p
+
+
+def notify(to_sub, req, kind, text, link):
+    """In-app notification, stored for 30 days and pushed live to the recipient's sockets."""
+    if not to_sub or to_sub == req.sub or to_sub == "quad" or str(to_sub).startswith("sample-"):
+        return
+    nid = new_id()
+    item = {"pk": f"USER#{to_sub}", "sk": f"NOTIF#{nid}", "nid": nid, "kind": kind, "text": text[:200], "link": link,
+            "actor": req.sub, "actorName": req.profile["name"], "read": False, "createdAt": now_ms(),
+            "ttl": int(time.time()) + 30 * 86400}
+    TABLE.put_item(Item=item)
+    push(f"user:{to_sub}", {"type": "notif", "notif": strip_keys(item)})
+
+
+def _post_label(p):
+    label = p.get("title") or p.get("text") or "your post"
+    return label if len(label) <= 50 else label[:47] + "..."
+
+
+@route("GET", "/api/feed")
+def feed(req):
+    sort = req.qs.get("sort", "hot")
+    if req.qs.get("scope") == "mine":
+        items = []
+        for c in query_all(KeyConditionExpression=Key("pk").eq(f"USER#{req.sub}") & Key("sk").begins_with("COMM#")):
+            items += query_all(KeyConditionExpression=Key("pk").eq(f"COMM#{c['cid']}") & Key("sk").begins_with("POST#"),
+                               ScanIndexForward=False, Limit=30)
+    else:
+        items = query_all(IndexName="gsi1", KeyConditionExpression=Key("gsi1pk").eq("POSTS"), ScanIndexForward=False, Limit=150)
+    return {"posts": _posts_out(req, _sort_posts(items, sort)[:50])}
+
+
+@route("GET", "/api/communities/{cid}/posts")
+def list_posts(req, cid):
+    sort = req.qs.get("sort", "hot")
+    before = req.qs.get("before")
+    if sort == "new":
+        upper = f"POST#{before}" if before else "POST#~"
+        items = query_all(KeyConditionExpression=Key("pk").eq(f"COMM#{cid}") & Key("sk").between("POST#0", upper),
+                          ScanIndexForward=False, Limit=26)
+        items = [p for p in items if p["pid"] != before][:25]
+    else:
+        items = query_all(KeyConditionExpression=Key("pk").eq(f"COMM#{cid}") & Key("sk").begins_with("POST#"),
+                          ScanIndexForward=False, Limit=100)
+        items = _sort_posts(items, sort)[:50]
+    return {"posts": _posts_out(req, items)}
+
+
+@route("GET", "/api/communities/{cid}/posts/{pid}")
+def get_post(req, cid, pid):
+    return _posts_out(req, [get_post_item(cid, pid)])[0]
 
 
 @route("POST", "/api/communities/{cid}/posts")
 def create_post(req, cid):
     require_member(req, cid)
-    text = clean_text(req.body.get("text"), 4000, "Post")
+    meta = get_community(cid)
+    title = clean_text(req.body.get("title"), 200, "Title")
+    text = clean_text(req.body.get("text"), 6000, "Post")
     atts = clean_attachments(req.sub, req.body.get("attachments"))
-    if not text and not atts:
-        raise ApiError(400, "Write something or attach a file")
+    if not title and not text and not atts:
+        raise ApiError(400, "Give your post a title")
     pid = new_id()
     p = {
-        "pk": f"COMM#{cid}", "sk": f"POST#{pid}", "pid": pid, "cid": cid, "author": req.sub,
-        "authorName": req.profile["name"], "authorLevel": req.profile.get("level", ""),
-        "text": text, "attachments": atts, "likeCount": 0, "commentCount": 0, "createdAt": now_ms(),
+        "pk": f"COMM#{cid}", "sk": f"POST#{pid}", "pid": pid, "cid": cid,
+        "communityName": meta["name"], "communityType": meta["type"],
+        "author": req.sub, "authorName": req.profile["name"], "authorLevel": req.profile.get("level", ""),
+        "title": title, "text": text, "attachments": atts, "score": 1, "commentCount": 0, "createdAt": now_ms(),
+        "gsi1pk": "POSTS", "gsi1sk": pid,
     }
     TABLE.put_item(Item=p)
+    TABLE.put_item(Item={"pk": f"POST#{pid}", "sk": f"VOTE#{req.sub}", "value": 1})  # like Reddit, you upvote your own post
     track(req, "posts")
     if atts:
         track(req, "files", len(atts))
     out = sign_attachments(strip_keys(p))
-    out["liked"] = False
     push(f"comm:{cid}", {"type": "post", "post": out})
+    out["myVote"] = 1
     return out
 
 
-@route("POST", "/api/communities/{cid}/posts/{pid}/like")
-def toggle_like(req, cid, pid):
-    require_member(req, cid)
-    post_key = {"pk": f"COMM#{cid}", "sk": f"POST#{pid}"}
-    like_key = {"pk": f"POST#{pid}", "sk": f"LIKE#{req.sub}"}
+@route("DELETE", "/api/communities/{cid}/posts/{pid}")
+def delete_post(req, cid, pid):
+    p = get_post_item(cid, pid)
+    member = get_membership(req.sub, cid)
+    if p["author"] != req.sub and not (member and member.get("role") == "owner"):
+        raise ApiError(403, "Only the author or the community owner can delete this post")
+    TABLE.delete_item(Key={"pk": f"COMM#{cid}", "sk": f"POST#{pid}"})
+    return {"ok": True}
+
+
+@route("POST", "/api/communities/{cid}/posts/{pid}/vote")
+def vote(req, cid, pid):
+    value = req.body.get("value")
+    if value not in (-1, 0, 1):
+        raise ApiError(400, "Vote must be -1, 0 or 1")
+    key = {"pk": f"POST#{pid}", "sk": f"VOTE#{req.sub}"}
+    old = int((TABLE.get_item(Key=key).get("Item") or {}).get("value", 0))
+    if value == old:
+        return {"score": get_post_item(cid, pid).get("score", 0), "myVote": value}
+    if value:
+        TABLE.put_item(Item={**key, "value": value})
+    else:
+        TABLE.delete_item(Key=key)
     try:
-        TABLE.put_item(Item={**like_key, "at": now_ms()}, ConditionExpression="attribute_not_exists(pk)")
-        delta, liked = 1, True
+        res = TABLE.update_item(
+            Key={"pk": f"COMM#{cid}", "sk": f"POST#{pid}"}, UpdateExpression="ADD score :d",
+            ExpressionAttributeValues={":d": value - old}, ConditionExpression="attribute_exists(pk)", ReturnValues="UPDATED_NEW",
+        )
     except ClientError as e:
-        if e.response["Error"]["Code"] != "ConditionalCheckFailedException":
-            raise
-        TABLE.delete_item(Key=like_key)
-        delta, liked = -1, False
-    res = TABLE.update_item(
-        Key=post_key, UpdateExpression="ADD likeCount :d", ExpressionAttributeValues={":d": delta},
-        ConditionExpression="attribute_exists(pk)", ReturnValues="UPDATED_NEW",
-    )
-    return {"liked": liked, "likeCount": res["Attributes"]["likeCount"]}
+        if e.response["Error"]["Code"] == "ConditionalCheckFailedException":
+            raise ApiError(404, "This post was deleted")
+        raise
+    return {"score": res["Attributes"]["score"], "myVote": value}
 
 
 @route("GET", "/api/communities/{cid}/posts/{pid}/comments")
 def list_comments(req, cid, pid):
-    items = query_all(KeyConditionExpression=Key("pk").eq(f"POST#{pid}") & Key("sk").begins_with("C#"), Limit=200)
+    items = query_all(KeyConditionExpression=Key("pk").eq(f"POST#{pid}") & Key("sk").begins_with("C#"), Limit=300)
     return {"comments": [strip_keys(c) for c in items]}
 
 
 @route("POST", "/api/communities/{cid}/posts/{pid}/comments")
 def add_comment(req, cid, pid):
-    require_member(req, cid)
-    text = clean_text(req.body.get("text"), 1000, "Comment", required=True)
+    text = clean_text(req.body.get("text"), 2000, "Comment", required=True)
+    post = get_post_item(cid, pid)
+    parent_id = str(req.body.get("parent") or "")
+    parent = None
+    if parent_id:
+        parent = TABLE.get_item(Key={"pk": f"POST#{pid}", "sk": f"C#{parent_id}"}).get("Item")
+        if not parent:
+            raise ApiError(400, "You're replying to a comment that no longer exists")
     cmid = new_id()
-    c = {"pk": f"POST#{pid}", "sk": f"C#{cmid}", "cmid": cmid, "pid": pid, "author": req.sub,
+    c = {"pk": f"POST#{pid}", "sk": f"C#{cmid}", "cmid": cmid, "pid": pid, "parent": parent_id, "author": req.sub,
          "authorName": req.profile["name"], "text": text, "createdAt": now_ms()}
     TABLE.update_item(
         Key={"pk": f"COMM#{cid}", "sk": f"POST#{pid}"}, UpdateExpression="ADD commentCount :one",
@@ -369,9 +466,65 @@ def add_comment(req, cid, pid):
     )
     TABLE.put_item(Item=c)
     track(req, "comments")
+    link = f"#/c/{cid}/p/{pid}"
+    notify(post["author"], req, "comment", f'commented on your post "{_post_label(post)}"', link)
+    if parent and parent["author"] != post["author"]:
+        notify(parent["author"], req, "reply", "replied to your comment", link)
     out = strip_keys(c)
     push(f"comm:{cid}", {"type": "comment", "pid": pid, "comment": out})
     return out
+
+
+@route("DELETE", "/api/communities/{cid}/posts/{pid}/comments/{cmid}")
+def delete_comment(req, cid, pid, cmid):
+    key = {"pk": f"POST#{pid}", "sk": f"C#{cmid}"}
+    c = TABLE.get_item(Key=key).get("Item")
+    if not c:
+        raise ApiError(404, "Comment not found")
+    if c["author"] != req.sub:
+        raise ApiError(403, "You can only delete your own comments")
+    # keep the slot so replies under it still make sense, like Reddit's [deleted]
+    TABLE.update_item(Key=key, UpdateExpression="SET #t=:t, deleted=:d", ExpressionAttributeNames={"#t": "text"},
+                      ExpressionAttributeValues={":t": "", ":d": True})
+    return {"ok": True}
+
+
+# ---------------- notifications ----------------
+
+@route("GET", "/api/notifications")
+def list_notifications(req):
+    items = query_all(KeyConditionExpression=Key("pk").eq(f"USER#{req.sub}") & Key("sk").begins_with("NOTIF#"),
+                      ScanIndexForward=False, Limit=30)
+    return {"notifications": [strip_keys(n) for n in items], "unread": sum(1 for n in items if not n.get("read"))}
+
+
+@route("POST", "/api/notifications/read")
+def read_notifications(req):
+    for n in query_all(KeyConditionExpression=Key("pk").eq(f"USER#{req.sub}") & Key("sk").begins_with("NOTIF#"),
+                       ScanIndexForward=False, Limit=30):
+        if not n.get("read"):
+            TABLE.update_item(Key={"pk": n["pk"], "sk": n["sk"]}, UpdateExpression="SET #r=:t",
+                              ExpressionAttributeNames={"#r": "read"}, ExpressionAttributeValues={":t": True})
+    return {"ok": True}
+
+
+# ---------------- search ----------------
+
+@route("GET", "/api/search")
+def search(req):
+    q = (req.qs.get("q") or "").strip().lower()
+    if len(q) < 2:
+        return {"posts": [], "communities": [], "people": []}
+    mine = {c["cid"] for c in query_all(KeyConditionExpression=Key("pk").eq(f"USER#{req.sub}") & Key("sk").begins_with("COMM#"))}
+    comms = [community_out(c, c["cid"] in mine)
+             for c in query_all(IndexName="gsi1", KeyConditionExpression=Key("gsi1pk").eq("COMMS"), Limit=500)
+             if q in f"{c['name']} {c.get('description', '')}".lower()]
+    people = [public_profile(p)
+              for p in query_all(IndexName="gsi1", KeyConditionExpression=Key("gsi1pk").eq("USERS"), Limit=1000)
+              if q in " ".join([p.get("name", ""), p.get("level", ""), p.get("city", ""), " ".join(p.get("skills", []))]).lower()]
+    posts = [p for p in query_all(IndexName="gsi1", KeyConditionExpression=Key("gsi1pk").eq("POSTS"), ScanIndexForward=False, Limit=500)
+             if q in f"{p.get('title', '')} {p.get('text', '')}".lower()]
+    return {"posts": _posts_out(req, posts[:30]), "communities": comms[:20], "people": people[:20]}
 
 
 # ---------------- chat (community groups + DMs) ----------------
@@ -434,6 +587,20 @@ def send_message(req, conv):
     return out
 
 
+@route("DELETE", "/api/conversations/{conv}/messages/{mid}")
+def delete_message(req, conv, mid):
+    conv_access(req.sub, conv)
+    key = {"pk": f"CONV#{conv}", "sk": f"MSG#{mid}"}
+    m = TABLE.get_item(Key=key).get("Item")
+    if not m:
+        raise ApiError(404, "Message not found")
+    if m["sender"] != req.sub:
+        raise ApiError(403, "You can only delete your own messages")
+    TABLE.delete_item(Key=key)
+    push(f"conv:{conv}", {"type": "message_deleted", "conv": conv, "mid": mid})
+    return {"ok": True}
+
+
 @route("GET", "/api/dms")
 def list_dms(req):
     items = query_all(KeyConditionExpression=Key("pk").eq(f"USER#{req.sub}") & Key("sk").begins_with("DM#"))
@@ -485,12 +652,32 @@ def catch_me_up(req, cid):
     return result
 
 
+@route("POST", "/api/communities/{cid}/teammates")
+def find_teammates(req, cid):
+    meta = get_community(cid)
+    if not meta:
+        raise ApiError(404, "Community not found")
+    require_member(req, cid)
+    need = clean_text(req.body.get("need"), 300, "What you're looking for", required=True)
+    members = query_all(KeyConditionExpression=Key("pk").eq(f"COMM#{cid}") & Key("sk").begins_with("MEMBER#"), Limit=100)
+    keys = [{"pk": f"USER#{m['sub']}", "sk": "PROFILE"} for m in members if m["sub"] != req.sub]
+    candidates = []
+    for i in range(0, len(keys), 100):
+        res = TABLE.meta.client.batch_get_item(RequestItems={TABLE.name: {"Keys": keys[i:i + 100]}})
+        candidates += [public_profile(p) for p in res["Responses"].get(TABLE.name, []) if not p.get("demo")]
+    if not candidates:
+        return {"matches": [], "tip": "You're the only member so far. Share the community link to bring people in!"}
+    result = teammates.find(public_profile(req.profile), need, candidates, meta)
+    track(req, "teammates")
+    return result
+
+
 # ---------------- public (no login) ----------------
 
 @route("GET", "/api/public/stats")
 def stats(req):
     s = TABLE.get_item(Key={"pk": "STATS", "sk": "GLOBAL"}).get("Item") or {}
-    return {k: s.get(k, 0) for k in ("users", "communities", "posts", "messages", "comments", "files", "catchups")}
+    return {k: s.get(k, 0) for k in ("users", "communities", "posts", "messages", "comments", "files", "catchups", "teammates")}
 
 
 def demo_password():
