@@ -13,7 +13,7 @@ docs/images/cover.png  (1200×675, about 460 KB)
 daily-life-enhancement · community · amazon-bedrock · serverless · aws-cdk
 
 ## GitHub repository
-https://github.com/23f2001033/quad   ← once it's published
+https://github.com/23f2001033/quad
 
 ## Endpoint / live demo
 https://d3sky2k7b1uv30.cloudfront.net
